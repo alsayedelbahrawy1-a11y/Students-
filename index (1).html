@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Study Cards</title>
+
+<!-- PWA/installability additions: metadata only, no app behavior changes -->
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="theme-color" content="#2B6E63">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Study Cards">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F3F5F2;
+    --surface: #FFFFFF;
+    --ink: #1B211E;
+    --ink-soft: #5C6660;
+    --line: #DCE1DC;
+    --teal: #2B6E63;
+    --teal-dark: #1E4F47;
+    --amber: #B4791F;
+    --danger: #A6412F;
+    --radius: 14px;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14201C;
+      --surface: #1C2A25;
+      --ink: #ECF1EE;
+      --ink-soft: #9FAFA8;
+      --line: #2D3D37;
+      --teal: #6FBAA8;
+      --teal-dark: #8FD1C1;
+      --amber: #E0A94D;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14201C;
+    --surface: #1C2A25;
+    --ink: #ECF1EE;
+    --ink-soft: #9FAFA8;
+    --line: #2D3D37;
+    --teal: #6FBAA8;
+    --teal-dark: #8FD1C1;
+    --amber: #E0A94D;
+  }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100%;
+  }
+  h1, h2, h3, .serif { font-family: 'Source Serif 4', Georgia, serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 28px 20px calc(60px + env(safe-area-inset-bottom, 0px)); }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 28px; gap: 12px; }
+  header h1 { font-size: 26px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--ink-soft); font-size: 14px; }
+  .storage-status {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px;
+  }
+  .storage-status.ok { color: var(--teal-dark); background: color-mix(in srgb, var(--teal) 14%, transparent); }
+  .storage-status.warn { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+  .storage-status.checking { color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 12%, transparent); }
+  .diagnostic-box {
+    margin-top: 10px; font-size: 12px; color: var(--ink-soft); font-family: ui-monospace, monospace;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; line-height: 1.6; word-break: break-all;
+  }
+  .diagnostic-box b { color: var(--ink); font-weight: 600; }
+  .btn {
+    appearance: none; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 16px;
+    border-radius: 999px; padding: 14px 22px;
+    background: var(--teal); color: white;
+    display: inline-flex; align-items: center; gap: 8px;
+    touch-action: manipulation;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn.ghost { background: transparent; color: var(--teal-dark); border: 1.5px solid var(--line); }
+  .btn.small { padding: 10px 16px; font-size: 14px; }
+  .btn.wide { width: 100%; justify-content: center; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .backup-bar { margin: -8px 0 18px; }
+
+  .deck-list { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+  .deck-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+  }
+  .deck-card .name { font-size: 17px; font-weight: 600; }
+  .deck-card .meta { color: var(--ink-soft); font-size: 13.5px; margin-top: 3px; }
+  .due-pill {
+    font-size: 13px; font-weight: 700; color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 14%, transparent);
+    padding: 5px 11px; border-radius: 999px; white-space: nowrap;
+  }
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--ink-soft);
+  }
+  .empty .serif { font-size: 19px; color: var(--ink); margin-bottom: 6px; }
+
+  .deck-card { flex-wrap: wrap; }
+  .deck-right { display: flex; align-items: center; gap: 12px; }
+  .due-count { font-size: 13px; font-weight: 600; }
+  .due-count.due { color: var(--amber); }
+  .due-count.none { color: var(--ink-soft); }
+
+  /* ---- Review screen ---- */
+  .review-view {
+    position: fixed; inset: 0; background: var(--bg); z-index: 40;
+    display: none; flex-direction: column;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  .review-view.open { display: flex; }
+  .review-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--line);
+  }
+  .review-top .deck-title { font-weight: 600; font-size: 15px; }
+  .review-top .remaining { color: var(--ink-soft); font-size: 13.5px; }
+  .icon-btn {
+    background: none; border: none; font-size: 22px; color: var(--ink-soft);
+    cursor: pointer; padding: 4px 8px; line-height: 1;
+  }
+  .review-body {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px 20px; gap: 22px; overflow-y: auto;
+  }
+  .card-face {
+    width: 100%; max-width: 560px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 20px; padding: 36px 28px; text-align: center;
+  }
+  .card-face .label {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-soft);
+    margin-bottom: 14px;
+  }
+  .card-face .content {
+    font-size: 21px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+    font-family: 'Source Serif 4', Georgia, serif;
+  }
+  .card-face.answer { border-color: var(--teal); }
+  .card-face .content.answer-text { color: var(--teal-dark); }
+  .divider-line { width: 100%; max-width: 560px; border: none; border-top: 1px solid var(--line); margin: 0; }
+
+  .show-answer-btn {
+    width: 100%; max-width: 560px; padding: 18px; font-size: 17px;
+  }
+  .rating-grid {
+    width: 100%; max-width: 560px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  }
+  @media (min-width: 520px) {
+    .rating-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  .rate-btn {
+    padding: 16px 8px; border-radius: 14px; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 15px; color: white;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .rate-btn:active { transform: scale(0.96); }
+  .rate-btn .when { font-size: 11.5px; font-weight: 500; opacity: 0.9; }
+  .rate-again { background: #A6412F; }
+  .rate-hard { background: #B4791F; }
+  .rate-good { background: #2B6E63; }
+  .rate-easy { background: #3E7FB0; }
+
+  .session-end { text-align: center; padding: 40px 20px; max-width: 420px; }
+  .session-end .serif { font-size: 22px; margin-bottom: 10px; }
+  .session-end p { color: var(--ink-soft); font-size: 15px; margin-bottom: 26px; }
+
+  /* ---- Inspect view (read-only diagnostic) ---- */
+  .inspect-view {
+    position: fixed; inset: 0; background: var(--bg); z-index: 40;
+    display: none; flex-direction: column;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  .inspect-view.open { display: flex; }
+  .inspect-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--line); gap: 10px;
+  }
+  .inspect-top .title { font-weight: 600; font-size: 15px; }
+  .inspect-banner {
+    margin: 14px 20px 0; font-size: 12.5px; font-weight: 700; color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 14%, transparent);
+    padding: 8px 12px; border-radius: 10px;
+  }
+  .inspect-body { flex: 1; overflow-y: auto; padding: 14px 20px 30px; }
+  .inspect-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .inspect-card .q { font-family: 'Source Serif 4', Georgia, serif; font-size: 15.5px; margin-bottom: 10px; }
+  .inspect-card table { width: 100%; border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 12.5px; }
+  .inspect-card td { padding: 3px 0; vertical-align: top; }
+  .inspect-card td.k { color: var(--ink-soft); width: 40%; white-space: nowrap; padding-right: 10px; }
+  .inspect-card td.v { word-break: break-word; }
+
+  .sheet-backdrop {
+    position: fixed; inset: 0; background: rgba(10, 16, 14, 0.4);
+    display: none; align-items: flex-end; justify-content: center; z-index: 20;
+  }
+  .sheet-backdrop.open { display: flex; }
+  .sheet {
+    background: var(--bg); width: 100%; max-width: 720px;
+    border-radius: 20px 20px 0 0; padding: 24px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+    max-height: 86vh; overflow-y: auto;
+  }
+  .sheet h2 { font-size: 20px; margin: 0 0 16px; }
+  .field-label { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin: 18px 0 8px; }
+  .text-input {
+    width: 100%; padding: 13px 14px; font-size: 16px; border-radius: 10px;
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+    font-family: inherit;
+  }
+  .paste-area {
+    width: 100%; min-height: 220px; max-height: 40vh; resize: vertical;
+    padding: 14px; font-size: 15px; line-height: 1.5; border-radius: 12px;
+    border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  .paste-hint { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; }
+  .deck-choice { display: flex; gap: 8px; margin-bottom: 10px; }
+  .deck-choice button {
+    flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid var(--line);
+    background: var(--surface); color: var(--ink-soft); font-weight: 600; font-size: 14px;
+    cursor: pointer;
+  }
+  .deck-choice button.active { border-color: var(--teal); color: var(--teal-dark); background: color-mix(in srgb, var(--teal) 10%, var(--surface)); }
+  select.text-input { appearance: none; }
+  .import-report {
+    margin-top: 18px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px; font-size: 14px;
+  }
+  .import-report .ok { color: var(--teal-dark); font-weight: 700; }
+  .import-report .bad { color: var(--danger); font-weight: 700; }
+  .import-report ul { margin: 8px 0 0; padding-left: 18px; max-height: 160px; overflow-y: auto; }
+  .import-report li { margin-bottom: 4px; color: var(--ink-soft); }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .toast {
+    position: fixed; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); left: 50%;
+    transform: translateX(-50%); background: var(--ink); color: var(--bg);
+    padding: 12px 20px; border-radius: 999px; font-size: 14px; font-weight: 500;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 30;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Study Cards</h1>
+      <p id="subhead">Loading your library…</p>
+      <div class="storage-status checking" id="storageStatus">Checking storage…</div>
+      <div class="diagnostic-box" id="diagnosticBox">Loading diagnostics…</div>
+    </div>
+    <button class="btn" id="importBtn">Add Cards</button>
+  </header>
+
+  <div class="backup-bar">
+    <button class="btn ghost small" id="backupBtn">Backup &amp; Restore</button>
+  </div>
+
+  <div id="deckList" class="deck-list"></div>
+  <div id="emptyState" class="empty" style="display:none">
+    <div class="serif">No decks yet</div>
+    <div>Paste tab-separated flashcard text to create your first deck.</div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="importBackdrop">
+  <div class="sheet">
+    <h2 class="serif">Add cards</h2>
+
+    <div class="field-label">1. Deck</div>
+    <div class="deck-choice">
+      <button type="button" id="choiceNew" class="active">New deck</button>
+      <button type="button" id="choiceExisting">Existing deck</button>
+    </div>
+    <input class="text-input" id="deckNameInput" placeholder="e.g. Cardiology">
+    <select class="text-input" id="deckSelect" style="display:none"></select>
+
+    <div class="field-label">2. Paste your cards</div>
+    <textarea class="paste-area" id="pasteArea" placeholder="What is the capital of France?	Paris&#10;Name the largest bone in the human body.	Femur" spellcheck="false" autocapitalize="off" autocorrect="off"></textarea>
+    <div class="paste-hint">One card per line: question, then a real Tab, then the answer. Paste as many as you like at once — the whole batch is parsed together.</div>
+
+    <div id="importReport"></div>
+
+    <div class="sheet-actions" id="validateActions">
+      <button class="btn ghost" id="cancelImport">Cancel</button>
+      <button class="btn wide" id="validateBtn">Validate</button>
+    </div>
+    <div class="sheet-actions" id="confirmActions" style="display:none">
+      <button class="btn ghost" id="backToEdit">Back</button>
+      <button class="btn wide" id="confirmImport">Confirm import</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-backdrop" id="backupBackdrop">
+  <div class="sheet">
+    <h2 class="serif">Backup &amp; Restore</h2>
+
+    <div class="field-label">Export</div>
+    <p style="margin:0 0 14px;color:var(--ink-soft);font-size:14px;line-height:1.5;">
+      Save a complete copy of your decks, cards, and review progress (including full scheduling state and history) as a single JSON file. Use the "Save to Files" option to store it in iCloud Drive so it survives even if this app is deleted and reinstalled.
+    </p>
+    <button class="btn wide" id="exportBackupBtn">Export Backup (.json)</button>
+
+    <div class="field-label" style="margin-top:26px;">Restore</div>
+    <p style="margin:0;color:var(--ink-soft);font-size:14px;line-height:1.5;">
+      Restore from a backup file is not available yet — it's coming in the next update. Nothing here can change your existing cards or progress.
+    </p>
+
+    <div class="sheet-actions">
+      <button class="btn ghost wide" id="closeBackupSheet">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="review-view" id="reviewView">
+  <div class="review-top">
+    <button class="icon-btn" id="closeReview" aria-label="Close">✕</button>
+    <div class="deck-title" id="reviewDeckTitle"></div>
+    <div class="remaining" id="reviewRemaining"></div>
+  </div>
+  <div class="review-body" id="reviewBody"></div>
+</div>
+
+<div class="inspect-view" id="inspectView">
+  <div class="inspect-top">
+    <button class="icon-btn" id="closeInspect" aria-label="Close">✕</button>
+    <div class="title" id="inspectDeckTitle"></div>
+    <div style="width:30px"></div>
+  </div>
+  <div class="inspect-banner">🔍 Read-only diagnostic view — displays stored data only. Nothing here changes any card, schedule, or due date.</div>
+  <div class="inspect-body" id="inspectBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- Storage layer (IndexedDB) ----------
+// IndexedDB is a permanent, on-device filing cabinet built into the browser.
+// Everything here stays on this iPad and is never sent anywhere.
+const DB_NAME = 'studycards';
+const DB_VERSION = 2; // v2 adds a small 'meta' store used only for diagnostics
+let db;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const _db = e.target.result;
+      if (!_db.objectStoreNames.contains('decks')) {
+        _db.createObjectStore('decks', { keyPath: 'id' });
+      }
+      if (!_db.objectStoreNames.contains('cards')) {
+        const store = _db.createObjectStore('cards', { keyPath: 'id' });
+        store.createIndex('deckId', 'deckId', { unique: false });
+      }
+      if (!_db.objectStoreNames.contains('meta')) {
+        _db.createObjectStore('meta', { keyPath: 'key' });
+      }
+    };
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+function tx(storeNames, mode) {
+  return db.transaction(storeNames, mode);
+}
+
+function addRecord(storeName, record) {
+  return new Promise((resolve, reject) => {
+    const t = tx([storeName], 'readwrite');
+    t.objectStore(storeName).put(record);
+    t.oncomplete = () => resolve();
+    t.onerror = (e) => reject(e.target.error);
+  }).then(() => {
+    if (storeName === 'decks' || storeName === 'cards') {
+      return recordLastWrite(storeName);
+    }
+  });
+}
+
+// Diagnostic only: stamps the moment a deck/card write actually completed,
+// so we can check on the next app open whether that stamp survived.
+function recordLastWrite(storeName) {
+  return new Promise((resolve) => {
+    const t = tx(['meta'], 'readwrite');
+    t.objectStore('meta').put({ key: 'lastWrite', at: Date.now(), store: storeName });
+    t.oncomplete = () => resolve();
+    t.onerror = () => resolve(); // diagnostic write failing shouldn't break the app
+  });
+}
+
+function getMeta(key) {
+  return new Promise((resolve) => {
+    const t = tx(['meta'], 'readonly');
+    const req = t.objectStore('meta').get(key);
+    req.onsuccess = () => resolve(req.result || null);
+    req.onerror = () => resolve(null);
+  });
+}
+
+function getAll(storeName) {
+  return new Promise((resolve, reject) => {
+    const t = tx([storeName], 'readonly');
+    const req = t.objectStore(storeName).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+function getAllByIndex(storeName, indexName, value) {
+  return new Promise((resolve, reject) => {
+    const t = tx([storeName], 'readonly');
+    const req = t.objectStore(storeName).index(indexName).getAll(value);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+// ---------- Import parsing ----------
+// The importer never rewrites or shortens your text. It only splits each
+// line on the Tab character and stores the two halves exactly as given.
+function parseImportFile(rawText) {
+  // Normalize line endings only (Windows \r\n -> \n). This does not touch
+  // the actual question/answer content, only how lines are separated.
+  const lines = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const cards = [];
+  const errors = [];
+
+  lines.forEach((line, idx) => {
+    const lineNum = idx + 1;
+    if (line.trim() === '') return; // skip fully blank lines silently
+    if (!line.includes('\t')) {
+      errors.push({ line: lineNum, reason: 'No Tab character found between question and answer', preview: line.slice(0, 60) });
+      return;
+    }
+    const tabIndex = line.indexOf('\t');
+    const question = line.slice(0, tabIndex);
+    const answer = line.slice(tabIndex + 1);
+    if (question.trim() === '' || answer.trim() === '') {
+      errors.push({ line: lineNum, reason: 'Question or answer is empty', preview: line.slice(0, 60) });
+      return;
+    }
+    cards.push({ question, answer });
+  });
+
+  return { cards, errors };
+}
+
+// ---------- Scheduling (SM-2-style) ----------
+// A card is either "learning" (brand new, or being relearned after a lapse)
+// or "review" (graduated onto the long-term, ease-based schedule).
+const MINUTE = 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
+const START_EASE = 2.5;
+const EASE_FLOOR = 1.3;
+
+function freshScheduleState() {
+  return {
+    phase: 'learning',
+    ease: START_EASE,
+    intervalDays: 0,
+    intervalStep: 0, // counts successful (non-Again) reviews since last graduation
+    lapses: 0,
+    due: Date.now(), // brand-new cards are due immediately
+    history: []
+  };
+}
+
+// Fills in scheduling fields on any card saved before this feature existed,
+// so nothing breaks and every old card behaves like a fresh new card.
+function withScheduleDefaults(card) {
+  if (card.phase) return card;
+  return { ...card, ...freshScheduleState(), due: card.due ?? Date.now() };
+}
+
+function applyRating(card, rating) {
+  const now = Date.now();
+  const updated = { ...card };
+  updated.history = [...(card.history || []), { t: now, rating }];
+
+  if (card.phase === 'learning') {
+    if (rating === 'again') {
+      updated.due = now + 10 * MINUTE;
+    } else if (rating === 'hard') {
+      updated.due = now + 15 * MINUTE;
+    } else if (rating === 'good') {
+      updated.phase = 'review';
+      updated.intervalDays = 1;
+      updated.intervalStep = 1;
+      updated.due = now + 1 * DAY;
+    } else if (rating === 'easy') {
+      updated.phase = 'review';
+      updated.intervalDays = 4;
+      updated.intervalStep = 1;
+      updated.due = now + 4 * DAY;
+    }
+    return updated;
+  }
+
+  // phase === 'review' (a graduated card)
+  if (rating === 'again') {
+    updated.phase = 'learning';
+    updated.ease = Math.max(EASE_FLOOR, card.ease - 0.2);
+    updated.lapses = (card.lapses || 0) + 1;
+    updated.intervalStep = 0;
+    updated.due = now + 10 * MINUTE;
+    return updated;
+  }
+
+  if (rating === 'hard') {
+    const newInterval = card.intervalDays * 1.2;
+    updated.ease = Math.max(EASE_FLOOR, card.ease - 0.15);
+    updated.intervalDays = newInterval;
+    updated.intervalStep = card.intervalStep + 1;
+    updated.due = now + newInterval * DAY;
+    return updated;
+  }
+
+  if (rating === 'good') {
+    const newInterval = (card.intervalStep === 1) ? 6 : (card.intervalDays * card.ease);
+    updated.intervalDays = newInterval;
+    updated.intervalStep = card.intervalStep + 1;
+    updated.due = now + newInterval * DAY;
+    return updated;
+  }
+
+  if (rating === 'easy') {
+    const newInterval = card.intervalDays * card.ease * 1.3;
+    updated.ease = card.ease + 0.15;
+    updated.intervalDays = newInterval;
+    updated.intervalStep = card.intervalStep + 1;
+    updated.due = now + newInterval * DAY;
+    return updated;
+  }
+
+  return updated;
+}
+
+// ---------- App state & rendering ----------
+let decksCache = [];
+let pendingParsed = null; // { cards, errors } from the currently-loaded file
+
+async function refreshDeckList() {
+  if (document.getElementById('diagnosticBox')) await renderDiagnosticBox();
+  decksCache = await getAll('decks');
+  const listEl = document.getElementById('deckList');
+  const emptyEl = document.getElementById('emptyState');
+  const subhead = document.getElementById('subhead');
+
+  if (decksCache.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.style.display = 'block';
+    subhead.textContent = 'Your personal, offline flashcard library';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  const totalCards = decksCache.reduce((sum, d) => sum + (d.cardCount || 0), 0);
+  subhead.textContent = `${decksCache.length} deck${decksCache.length === 1 ? '' : 's'} · ${totalCards} card${totalCards === 1 ? '' : 's'}`;
+
+  const dueCounts = await Promise.all(decksCache.map(d => countDue(d.id)));
+
+  listEl.innerHTML = decksCache.map((d, i) => {
+    const due = dueCounts[i];
+    return `
+    <div class="deck-card">
+      <div>
+        <div class="name">${escapeHtml(d.name)}</div>
+        <div class="meta">${d.cardCount || 0} card${(d.cardCount || 0) === 1 ? '' : 's'}</div>
+      </div>
+      <div class="deck-right">
+        <span class="due-count ${due > 0 ? 'due' : 'none'}">${due > 0 ? due + ' due' : 'All caught up'}</span>
+        <button class="btn ghost small inspect-btn" data-deck-id="${d.id}">Inspect</button>
+        <button class="btn small study-btn" data-deck-id="${d.id}">Study</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  listEl.querySelectorAll('.study-btn').forEach(btn => {
+    btn.onclick = () => startReview(btn.getAttribute('data-deck-id'));
+  });
+  listEl.querySelectorAll('.inspect-btn').forEach(btn => {
+    btn.onclick = () => openInspectView(btn.getAttribute('data-deck-id'));
+  });
+}
+
+async function countDue(deckId) {
+  const cards = await getAllByIndex('cards', 'deckId', deckId);
+  const now = Date.now();
+  return cards.filter(c => (c.due ?? 0) <= now).length;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ---------- Add Cards sheet wiring ----------
+const backdrop = document.getElementById('importBackdrop');
+const pasteArea = document.getElementById('pasteArea');
+const deckNameInput = document.getElementById('deckNameInput');
+const deckSelect = document.getElementById('deckSelect');
+const choiceNew = document.getElementById('choiceNew');
+const choiceExisting = document.getElementById('choiceExisting');
+const importReport = document.getElementById('importReport');
+const validateActions = document.getElementById('validateActions');
+const confirmActions = document.getElementById('confirmActions');
+const validateBtn = document.getElementById('validateBtn');
+const confirmBtn = document.getElementById('confirmImport');
+let deckMode = 'new'; // 'new' or 'existing'
+
+function setDeckMode(mode) {
+  deckMode = mode;
+  choiceNew.classList.toggle('active', mode === 'new');
+  choiceExisting.classList.toggle('active', mode === 'existing');
+  deckNameInput.style.display = mode === 'new' ? 'block' : 'none';
+  deckSelect.style.display = mode === 'existing' ? 'block' : 'none';
+}
+choiceNew.onclick = () => setDeckMode('new');
+choiceExisting.onclick = () => setDeckMode('existing');
+
+function currentDeckChoice() {
+  if (deckMode === 'new') {
+    const name = deckNameInput.value.trim();
+    return name ? { isNew: true, name } : null;
+  } else {
+    const id = deckSelect.value;
+    if (!id) return null;
+    const deck = decksCache.find(d => d.id === id);
+    return deck ? { isNew: false, id: deck.id, name: deck.name } : null;
+  }
+}
+
+document.getElementById('importBtn').onclick = () => {
+  pendingParsed = null;
+  pasteArea.value = '';
+  deckNameInput.value = '';
+  importReport.innerHTML = '';
+  validateActions.style.display = 'flex';
+  confirmActions.style.display = 'none';
+  pasteArea.disabled = false;
+  deckNameInput.disabled = false;
+  deckSelect.disabled = false;
+  choiceNew.disabled = false;
+  choiceExisting.disabled = false;
+
+  deckSelect.innerHTML = decksCache.length
+    ? decksCache.map(d => `<option value="${d.id}">${escapeHtml(d.name)} (${d.cardCount || 0} cards)</option>`).join('')
+    : `<option value="">No existing decks yet</option>`;
+  setDeckMode(decksCache.length ? 'new' : 'new');
+  if (!decksCache.length) { choiceExisting.disabled = true; }
+
+  backdrop.classList.add('open');
+};
+document.getElementById('cancelImport').onclick = () => backdrop.classList.remove('open');
+backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.classList.remove('open'); };
+
+document.getElementById('backToEdit').onclick = () => {
+  pendingParsed = null;
+  importReport.innerHTML = '';
+  validateActions.style.display = 'flex';
+  confirmActions.style.display = 'none';
+  pasteArea.disabled = false;
+  deckNameInput.disabled = false;
+  deckSelect.disabled = false;
+  choiceNew.disabled = false;
+  choiceExisting.disabled = decksCache.length === 0;
+};
+
+validateBtn.onclick = () => {
+  const deckChoice = currentDeckChoice();
+  const rawText = pasteArea.value;
+
+  if (!deckChoice) {
+    importReport.innerHTML = `<div class="bad">Please ${deckMode === 'new' ? 'type a deck name' : 'choose an existing deck'} first.</div>`;
+    return;
+  }
+  if (!rawText.trim()) {
+    importReport.innerHTML = `<div class="bad">Paste your flashcard text before validating.</div>`;
+    return;
+  }
+
+  const { cards, errors } = parseImportFile(rawText);
+  pendingParsed = { cards, errors, deckChoice };
+  renderImportReport();
+
+  if (cards.length > 0) {
+    validateActions.style.display = 'none';
+    confirmActions.style.display = 'flex';
+    pasteArea.disabled = true;
+    deckNameInput.disabled = true;
+    deckSelect.disabled = true;
+    choiceNew.disabled = true;
+    choiceExisting.disabled = true;
+  }
+};
+
+function renderImportReport() {
+  if (!pendingParsed) { importReport.innerHTML = ''; return; }
+  const { cards, errors } = pendingParsed;
+  let html = `<div class="import-report"><span class="ok">${cards.length} card${cards.length === 1 ? '' : 's'} detected</span>`;
+  if (errors.length) html += ` · <span class="bad">${errors.length} line${errors.length === 1 ? '' : 's'} skipped</span>`;
+  html += `</div>`;
+  if (errors.length) {
+    html += `<ul>` + errors.slice(0, 50).map(e =>
+      `<li>Line ${e.line}: ${escapeHtml(e.reason)} — "${escapeHtml(e.preview)}${e.preview.length >= 60 ? '…' : ''}"</li>`
+    ).join('') + `</ul>`;
+    if (errors.length > 50) html += `<div style="margin-top:6px;color:var(--ink-soft)">…and ${errors.length - 50} more.</div>`;
+  }
+  importReport.innerHTML = html;
+}
+
+confirmBtn.onclick = async () => {
+  if (!pendingParsed || pendingParsed.cards.length === 0) return;
+  const { deckChoice, cards } = pendingParsed;
+
+  let deckId, deckName, newCount;
+  if (deckChoice.isNew) {
+    deckId = uid();
+    deckName = deckChoice.name;
+    newCount = cards.length;
+    await addRecord('decks', { id: deckId, name: deckName, cardCount: newCount, createdAt: Date.now() });
+  } else {
+    deckId = deckChoice.id;
+    deckName = deckChoice.name;
+    const existing = decksCache.find(d => d.id === deckId);
+    newCount = (existing?.cardCount || 0) + cards.length;
+    await addRecord('decks', { ...existing, cardCount: newCount });
+  }
+
+  for (const c of cards) {
+    await addRecord('cards', {
+      id: uid(),
+      deckId: deckId,
+      question: c.question,
+      answer: c.answer,
+      createdAt: Date.now(),
+      ...freshScheduleState()
+    });
+  }
+
+  backdrop.classList.remove('open');
+  showToast(`Added ${cards.length} card${cards.length === 1 ? '' : 's'} to "${deckName}"`);
+  await refreshDeckList();
+};
+
+// ---------- Backup: sheet wiring ----------
+const backupBackdrop = document.getElementById('backupBackdrop');
+document.getElementById('backupBtn').onclick = () => backupBackdrop.classList.add('open');
+document.getElementById('closeBackupSheet').onclick = () => backupBackdrop.classList.remove('open');
+backupBackdrop.onclick = (e) => { if (e.target === backupBackdrop) backupBackdrop.classList.remove('open'); };
+
+// ---------- Backup: Export ----------
+// Export is READ-ONLY: it only calls getAll(), never addRecord(). Opening or
+// using this sheet cannot change any deck, card, or scheduling state.
+const BACKUP_FORMAT_VERSION = 1;
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+function backupFilename(date) {
+  const y = date.getFullYear();
+  const m = pad2(date.getMonth() + 1);
+  const d = pad2(date.getDate());
+  const hh = pad2(date.getHours());
+  const mm = pad2(date.getMinutes());
+  return `studycards-backup-${y}-${m}-${d}-${hh}${mm}.json`;
+}
+
+// Reads decks and cards EXACTLY as stored — no defaulting, no transformation —
+// so the backup is a faithful snapshot of what is actually in IndexedDB right
+// now. 'meta' is intentionally excluded: it holds only this device's own
+// diagnostic last-write timestamp, not user data, and regenerates itself.
+async function buildBackupPayload() {
+  const [decks, cards] = await Promise.all([
+    getAll('decks'),
+    getAll('cards')
+  ]);
+  return {
+    app: 'studycards',
+    backupFormatVersion: BACKUP_FORMAT_VERSION,
+    exportedAt: Date.now(),
+    counts: { deckCount: decks.length, cardCount: cards.length },
+    decks,
+    cards
+  };
+}
+
+async function exportBackup() {
+  const exportBtn = document.getElementById('exportBackupBtn');
+  const originalLabel = exportBtn.textContent;
+  exportBtn.disabled = true;
+  exportBtn.textContent = 'Preparing backup…';
+  try {
+    const payload = await buildBackupPayload();
+    const json = JSON.stringify(payload, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = backupFilename(new Date());
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revoke slightly after the click rather than immediately, so iOS Safari
+    // has time to hand the blob off to its "Save to Files" sheet first.
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+
+    showToast(`Backup ready: ${payload.counts.deckCount} decks, ${payload.counts.cardCount} cards`);
+  } catch (err) {
+    console.error('Backup export failed:', err);
+    showToast('Backup failed — please try again.');
+  } finally {
+    exportBtn.disabled = false;
+    exportBtn.textContent = originalLabel;
+  }
+}
+
+document.getElementById('exportBackupBtn').onclick = exportBackup;
+
+// ---------- Persistent storage request ----------
+// Asks the browser to treat this app's stored data as important and not
+// something it should clear automatically (e.g. to free up space, or via
+// a "clear data on exit" setting). The browser can still refuse this,
+// which is why we also show the result on screen rather than assuming.
+async function checkPersistentStorage() {
+  const statusEl = document.getElementById('storageStatus');
+  if (!('storage' in navigator) || !('persist' in navigator.storage)) {
+    statusEl.textContent = 'Storage: cannot verify in this browser';
+    statusEl.className = 'storage-status warn';
+    return;
+  }
+  try {
+    let granted = await navigator.storage.persisted();
+    if (!granted) {
+      granted = await navigator.storage.persist();
+    }
+    if (granted) {
+      statusEl.textContent = 'Storage: persistent ✅';
+      statusEl.className = 'storage-status ok';
+    } else {
+      statusEl.textContent = 'Storage: not guaranteed ⚠️ — may be cleared by browser settings';
+      statusEl.className = 'storage-status warn';
+    }
+  } catch (err) {
+    statusEl.textContent = 'Storage: could not verify';
+    statusEl.className = 'storage-status warn';
+    console.error(err);
+  }
+}
+
+async function renderDiagnosticBox() {
+  const box = document.getElementById('diagnosticBox');
+  const meta = await getMeta('lastWrite');
+  const lastWriteText = meta
+    ? `${new Date(meta.at).toLocaleString()} (${meta.store})`
+    : 'No previous write recorded';
+  box.innerHTML =
+    `<b>Origin:</b> ${escapeHtml(location.origin)}<br>` +
+    `<b>Full address:</b> ${escapeHtml(location.href)}<br>` +
+    `<b>Last DB write:</b> ${escapeHtml(lastWriteText)}<br>` +
+    `<b>Checked just now:</b> ${escapeHtml(new Date().toLocaleString())}`;
+}
+
+async function migrateCardsIfNeeded() {
+  const allCards = await getAll('cards');
+  const toFix = allCards.filter(c => !c.phase);
+  for (const c of toFix) {
+    await addRecord('cards', withScheduleDefaults(c));
+  }
+}
+
+// ---------- Review session ----------
+const reviewView = document.getElementById('reviewView');
+const reviewDeckTitle = document.getElementById('reviewDeckTitle');
+const reviewRemaining = document.getElementById('reviewRemaining');
+const reviewBody = document.getElementById('reviewBody');
+let session = null; // { deckId, deckName, queue: [cards...], index, showingAnswer }
+
+async function startReview(deckId) {
+  const deck = decksCache.find(d => d.id === deckId);
+  const allCards = (await getAllByIndex('cards', 'deckId', deckId)).map(withScheduleDefaults);
+  const now = Date.now();
+  const due = allCards.filter(c => c.due <= now);
+
+  session = { deckId, deckName: deck ? deck.name : '', queue: due, index: 0 };
+  reviewDeckTitle.textContent = deck ? deck.name : '';
+  reviewView.classList.add('open');
+  renderReviewStep();
+}
+
+function closeReview() {
+  reviewView.classList.remove('open');
+  session = null;
+  refreshDeckList();
+}
+document.getElementById('closeReview').onclick = closeReview;
+
+function renderReviewStep() {
+  if (!session) return;
+  if (session.index >= session.queue.length) {
+    reviewRemaining.textContent = '';
+    reviewBody.innerHTML = `
+      <div class="session-end">
+        <div class="serif">No cards due right now</div>
+        <p>${session.queue.length > 0 ? "You've reviewed everything due in this deck." : "There's nothing due in this deck at the moment."} Come back later, or check another deck.</p>
+        <button class="btn" id="doneReview">Done</button>
+      </div>`;
+    document.getElementById('doneReview').onclick = closeReview;
+    return;
+  }
+
+  const remaining = session.queue.length - session.index;
+  reviewRemaining.textContent = `${remaining} card${remaining === 1 ? '' : 's'} left`;
+
+  const card = session.queue[session.index];
+  reviewBody.innerHTML = `
+    <div class="card-face">
+      <div class="label">QUESTION</div>
+      <div class="content">${escapeHtml(card.question)}</div>
+    </div>
+    <button class="btn show-answer-btn" id="showAnswerBtn">Show Answer</button>
+  `;
+  document.getElementById('showAnswerBtn').onclick = () => renderAnswerStep(card);
+}
+
+function renderAnswerStep(card) {
+  reviewBody.innerHTML = `
+    <div class="card-face">
+      <div class="label">QUESTION</div>
+      <div class="content">${escapeHtml(card.question)}</div>
+    </div>
+    <hr class="divider-line">
+    <div class="card-face answer">
+      <div class="label">ANSWER</div>
+      <div class="content answer-text">${escapeHtml(card.answer)}</div>
+    </div>
+    <div class="rating-grid">
+      <button class="rate-btn rate-again" data-rating="again">Again<span class="when">${describeNextInterval(card, 'again')}</span></button>
+      <button class="rate-btn rate-hard" data-rating="hard">Hard<span class="when">${describeNextInterval(card, 'hard')}</span></button>
+      <button class="rate-btn rate-good" data-rating="good">Good<span class="when">${describeNextInterval(card, 'good')}</span></button>
+      <button class="rate-btn rate-easy" data-rating="easy">Easy<span class="when">${describeNextInterval(card, 'easy')}</span></button>
+    </div>
+  `;
+  reviewBody.querySelectorAll('.rate-btn').forEach(btn => {
+    btn.onclick = () => submitRating(card, btn.getAttribute('data-rating'));
+  });
+}
+
+function describeNextInterval(card, rating) {
+  const preview = applyRating(card, rating);
+  const ms = preview.due - Date.now();
+  if (ms < 60 * MINUTE) return `${Math.max(1, Math.round(ms / MINUTE))} min`;
+  const days = ms / DAY;
+  if (days < 1) return `${Math.round(ms / (60 * MINUTE))} hr`;
+  if (days < 30) return `${Math.round(days)} d`;
+  if (days < 365) return `${Math.round(days / 30)} mo`;
+  return `${(days / 365).toFixed(1)} yr`;
+}
+
+async function submitRating(card, rating) {
+  const updated = applyRating(card, rating);
+  // Saved to the on-device database immediately, before moving to the next card.
+  await addRecord('cards', updated);
+  session.index += 1;
+  renderReviewStep();
+}
+
+// ---------- Inspect view (read-only diagnostic) ----------
+// This view only ever READS from IndexedDB (getAllByIndex) and formats
+// what it finds for display. It never calls addRecord or applyRating,
+// so opening or viewing this screen cannot change any stored data.
+const inspectView = document.getElementById('inspectView');
+const inspectDeckTitle = document.getElementById('inspectDeckTitle');
+const inspectBody = document.getElementById('inspectBody');
+
+document.getElementById('closeInspect').onclick = () => {
+  inspectView.classList.remove('open');
+};
+
+async function openInspectView(deckId) {
+  const deck = decksCache.find(d => d.id === deckId);
+  inspectDeckTitle.textContent = deck ? `Inspect: ${deck.name}` : 'Inspect';
+
+  // withScheduleDefaults only fills in missing fields on the in-memory copy
+  // for display purposes; it does not write anything back to the database.
+  const rawCards = await getAllByIndex('cards', 'deckId', deckId);
+  const cards = rawCards.map(withScheduleDefaults);
+
+  if (cards.length === 0) {
+    inspectBody.innerHTML = `<div style="color:var(--ink-soft)">No cards in this deck.</div>`;
+  } else {
+    inspectBody.innerHTML = cards.map(c => renderInspectCard(c)).join('');
+  }
+  inspectView.classList.add('open');
+}
+
+function renderInspectCard(c) {
+  const dueDate = c.due ? new Date(c.due) : null;
+  const historyText = (c.history && c.history.length)
+    ? c.history.map(h => `${new Date(h.t).toLocaleString()} → ${h.rating}`).join('<br>')
+    : '(empty)';
+
+  return `
+    <div class="inspect-card">
+      <div class="q">${escapeHtml(c.question)}</div>
+      <table>
+        <tr><td class="k">phase</td><td class="v">${escapeHtml(String(c.phase))}</td></tr>
+        <tr><td class="k">ease</td><td class="v">${escapeHtml(String(c.ease))}</td></tr>
+        <tr><td class="k">intervalDays</td><td class="v">${escapeHtml(String(c.intervalDays))}</td></tr>
+        <tr><td class="k">intervalStep</td><td class="v">${escapeHtml(String(c.intervalStep))}</td></tr>
+        <tr><td class="k">due (raw timestamp)</td><td class="v">${escapeHtml(String(c.due))}</td></tr>
+        <tr><td class="k">due (readable)</td><td class="v">${escapeHtml(dueDate ? dueDate.toLocaleString() : '(none)')}</td></tr>
+        <tr><td class="k">lapses</td><td class="v">${escapeHtml(String(c.lapses))}</td></tr>
+        <tr><td class="k">history</td><td class="v">${historyText}</td></tr>
+      </table>
+    </div>`;
+}
+
+// ---------- Boot ----------
+(async () => {
+  try {
+    db = await openDB();
+    await checkPersistentStorage();
+    await renderDiagnosticBox(); // reads meta BEFORE migration/import can write anything new
+    await migrateCardsIfNeeded();
+    await refreshDeckList();
+  } catch (err) {
+    document.getElementById('subhead').textContent = 'Storage error — please reopen the app.';
+    console.error(err);
+  }
+})();
+
+// ---------- Offline app-shell registration ----------
+// This only lets the app's own page/icons load without internet.
+// It has no access to and does not affect IndexedDB or your flashcard data.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch((err) => {
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
