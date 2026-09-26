@@ -180,6 +180,34 @@
   .session-end .serif { font-size: 22px; margin-bottom: 10px; }
   .session-end p { color: var(--ink-soft); font-size: 15px; margin-bottom: 26px; }
 
+  /* ---- Inspect view (read-only diagnostic) ---- */
+  .inspect-view {
+    position: fixed; inset: 0; background: var(--bg); z-index: 40;
+    display: none; flex-direction: column;
+    padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+  }
+  .inspect-view.open { display: flex; }
+  .inspect-top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--line); gap: 10px;
+  }
+  .inspect-top .title { font-weight: 600; font-size: 15px; }
+  .inspect-banner {
+    margin: 14px 20px 0; font-size: 12.5px; font-weight: 700; color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 14%, transparent);
+    padding: 8px 12px; border-radius: 10px;
+  }
+  .inspect-body { flex: 1; overflow-y: auto; padding: 14px 20px 30px; }
+  .inspect-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .inspect-card .q { font-family: 'Source Serif 4', Georgia, serif; font-size: 15.5px; margin-bottom: 10px; }
+  .inspect-card table { width: 100%; border-collapse: collapse; font-family: ui-monospace, monospace; font-size: 12.5px; }
+  .inspect-card td { padding: 3px 0; vertical-align: top; }
+  .inspect-card td.k { color: var(--ink-soft); width: 40%; white-space: nowrap; padding-right: 10px; }
+  .inspect-card td.v { word-break: break-word; }
+
   .sheet-backdrop {
     position: fixed; inset: 0; background: rgba(10, 16, 14, 0.4);
     display: none; align-items: flex-end; justify-content: center; z-index: 20;
@@ -285,6 +313,16 @@
     <div class="remaining" id="reviewRemaining"></div>
   </div>
   <div class="review-body" id="reviewBody"></div>
+</div>
+
+<div class="inspect-view" id="inspectView">
+  <div class="inspect-top">
+    <button class="icon-btn" id="closeInspect" aria-label="Close">✕</button>
+    <div class="title" id="inspectDeckTitle"></div>
+    <div style="width:30px"></div>
+  </div>
+  <div class="inspect-banner">🔍 Read-only diagnostic view — displays stored data only. Nothing here changes any card, schedule, or due date.</div>
+  <div class="inspect-body" id="inspectBody"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -531,6 +569,7 @@ async function refreshDeckList() {
       </div>
       <div class="deck-right">
         <span class="due-count ${due > 0 ? 'due' : 'none'}">${due > 0 ? due + ' due' : 'All caught up'}</span>
+        <button class="btn ghost small inspect-btn" data-deck-id="${d.id}">Inspect</button>
         <button class="btn small study-btn" data-deck-id="${d.id}">Study</button>
       </div>
     </div>`;
@@ -538,6 +577,9 @@ async function refreshDeckList() {
 
   listEl.querySelectorAll('.study-btn').forEach(btn => {
     btn.onclick = () => startReview(btn.getAttribute('data-deck-id'));
+  });
+  listEl.querySelectorAll('.inspect-btn').forEach(btn => {
+    btn.onclick = () => openInspectView(btn.getAttribute('data-deck-id'));
   });
 }
 
@@ -855,6 +897,57 @@ async function submitRating(card, rating) {
   await addRecord('cards', updated);
   session.index += 1;
   renderReviewStep();
+}
+
+// ---------- Inspect view (read-only diagnostic) ----------
+// This view only ever READS from IndexedDB (getAllByIndex) and formats
+// what it finds for display. It never calls addRecord or applyRating,
+// so opening or viewing this screen cannot change any stored data.
+const inspectView = document.getElementById('inspectView');
+const inspectDeckTitle = document.getElementById('inspectDeckTitle');
+const inspectBody = document.getElementById('inspectBody');
+
+document.getElementById('closeInspect').onclick = () => {
+  inspectView.classList.remove('open');
+};
+
+async function openInspectView(deckId) {
+  const deck = decksCache.find(d => d.id === deckId);
+  inspectDeckTitle.textContent = deck ? `Inspect: ${deck.name}` : 'Inspect';
+
+  // withScheduleDefaults only fills in missing fields on the in-memory copy
+  // for display purposes; it does not write anything back to the database.
+  const rawCards = await getAllByIndex('cards', 'deckId', deckId);
+  const cards = rawCards.map(withScheduleDefaults);
+
+  if (cards.length === 0) {
+    inspectBody.innerHTML = `<div style="color:var(--ink-soft)">No cards in this deck.</div>`;
+  } else {
+    inspectBody.innerHTML = cards.map(c => renderInspectCard(c)).join('');
+  }
+  inspectView.classList.add('open');
+}
+
+function renderInspectCard(c) {
+  const dueDate = c.due ? new Date(c.due) : null;
+  const historyText = (c.history && c.history.length)
+    ? c.history.map(h => `${new Date(h.t).toLocaleString()} → ${h.rating}`).join('<br>')
+    : '(empty)';
+
+  return `
+    <div class="inspect-card">
+      <div class="q">${escapeHtml(c.question)}</div>
+      <table>
+        <tr><td class="k">phase</td><td class="v">${escapeHtml(String(c.phase))}</td></tr>
+        <tr><td class="k">ease</td><td class="v">${escapeHtml(String(c.ease))}</td></tr>
+        <tr><td class="k">intervalDays</td><td class="v">${escapeHtml(String(c.intervalDays))}</td></tr>
+        <tr><td class="k">intervalStep</td><td class="v">${escapeHtml(String(c.intervalStep))}</td></tr>
+        <tr><td class="k">due (raw timestamp)</td><td class="v">${escapeHtml(String(c.due))}</td></tr>
+        <tr><td class="k">due (readable)</td><td class="v">${escapeHtml(dueDate ? dueDate.toLocaleString() : '(none)')}</td></tr>
+        <tr><td class="k">lapses</td><td class="v">${escapeHtml(String(c.lapses))}</td></tr>
+        <tr><td class="k">history</td><td class="v">${historyText}</td></tr>
+      </table>
+    </div>`;
 }
 
 // ---------- Boot ----------
